@@ -2,6 +2,22 @@
 
 Agent skills for [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and other tools supporting the [Agent Skills](https://agentskills.io) spec.
 
+## Available Skills
+
+| Skill | Description |
+|-------|-------------|
+| [dokploy](skills/dokploy) | Manage Dokploy infrastructure (projects, applications, databases, domains, compose, deployments, servers) via REST API |
+
+## Install
+
+```bash
+# Install all skills
+npx skills add gilbarbara/skills
+
+# Install a specific skill
+npx skills add gilbarbara/skills/dokploy
+```
+
 ## License
 
 MIT
