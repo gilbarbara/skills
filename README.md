@@ -6,6 +6,7 @@ Agent skills for [Claude Code](https://docs.anthropic.com/en/docs/claude-code) a
 
 | Skill | Description |
 |-------|-------------|
+| [algolia-search-optimizations](skills/algolia-search-optimizations) | Audit and optimize Algolia DocSearch setups: diagnose indexing gaps, fix crawler selectors, add synonyms, and verify improvements via analytics |
 | [dokploy](skills/dokploy) | Manage Dokploy infrastructure (projects, applications, databases, domains, compose, deployments, servers) via REST API |
 
 ## Install
@@ -15,6 +16,7 @@ Agent skills for [Claude Code](https://docs.anthropic.com/en/docs/claude-code) a
 npx skills add gilbarbara/skills
 
 # Install a specific skill
+npx skills add gilbarbara/skills -s algolia-search-optimizations
 npx skills add gilbarbara/skills -s dokploy
 ```
 
