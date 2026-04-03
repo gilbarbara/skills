@@ -15,7 +15,7 @@ Agent skills for [Claude Code](https://docs.anthropic.com/en/docs/claude-code) a
 npx skills add gilbarbara/skills
 
 # Install a specific skill
-npx skills add gilbarbara/skills/dokploy
+npx skills add gilbarbara/skills -s dokploy
 ```
 
 ## License
