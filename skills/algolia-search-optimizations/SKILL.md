@@ -13,11 +13,59 @@ This skill is for sites already using DocSearch. For implementing Algolia search
 
 You'll need from the user:
 - **App ID** — found in the DocSearch component or Algolia dashboard
-- **Search API key** — the public key (read-only, safe to share)
-- **Analytics/Admin API key** — required for analytics queries (ask the user, don't guess)
+- **Search API key** — public, read-only. Powers Phase 0 (settings/synonyms/rules), Phase 2 (record inspection), Phase 4 snapshot loop.
+- **Analytics API key** — admin or analytics ACL. Powers Phase 1 (analytics endpoints).
 - **Index name** — usually visible in the DocSearch component config
 
-The search API key is often visible in the site's source code. The analytics key must be provided by the user.
+The search API key is often visible in the site's source code. The analytics key must be provided by the user. If a Phase 0 or Phase 2 curl returns `403 "Method not allowed with this API key"`, the user gave you the analytics key by mistake — ask for the search key.
+
+## Phase 0: Inventory Deployed Configuration
+
+Before analyzing gaps or proposing changes, fetch what is already live in Algolia. Skipping this leads to redundant proposals and fixes that conflict with existing rules. Everything in this phase is read-only and uses the keys from Prerequisites.
+
+The deployed Algolia state is the source of truth — a repo may also have committed crawler-config or notes files (`crawler*.json`, `algolia.md`, etc.). Treat those as a secondary cross-check, not the primary source.
+
+### Deployed synonyms
+
+```bash
+curl -s "https://{APP_ID}-dsn.algolia.net/1/indexes/{INDEX}/synonyms/search" \
+  -H "X-Algolia-Application-Id: {APP_ID}" \
+  -H "X-Algolia-API-Key: {SEARCH_KEY}" \
+  -d '{"query":"","hitsPerPage":1000}'
+```
+
+Returns one-way and bidirectional synonyms. Skip proposing any synonym already present.
+
+### Index settings
+
+```bash
+curl -s "https://{APP_ID}-dsn.algolia.net/1/indexes/{INDEX}/settings" \
+  -H "X-Algolia-Application-Id: {APP_ID}" \
+  -H "X-Algolia-API-Key: {SEARCH_KEY}"
+```
+
+Pay attention to: `customRanking`, `ranking`, `searchableAttributes`, `attributeForDistinct`, `distinct`, `removeWordsIfNoResults`, `minWordSizefor1Typo`, `minWordSizefor2Typos`, `ignorePlurals`. These together determine why any given record ranks where it does — required reading before proposing any ranking, preview, or relevance fix.
+
+### Query rules
+
+```bash
+curl -s "https://{APP_ID}-dsn.algolia.net/1/indexes/{INDEX}/rules/search" \
+  -H "X-Algolia-Application-Id: {APP_ID}" \
+  -H "X-Algolia-API-Key: {SEARCH_KEY}" \
+  -d '{"query":"","hitsPerPage":1000}'
+```
+
+Query rules can boost, filter, or redirect specific queries. Often deployed and otherwise invisible.
+
+### Click-tracking check
+
+CTR and click position fields in analytics depend on Algolia Insights. If those fields are `null` everywhere despite traffic, the DocSearch component on the site is missing `insights={true}`:
+
+```tsx
+<DocSearch appId="..." apiKey="..." indexName="..." insights={true} />
+```
+
+Flag this to the user as a prerequisite before any no-click analysis is meaningful.
 
 ## Phase 1: Query Analytics for Gaps
 
@@ -41,11 +89,22 @@ dark               4         0     -       -       No dark mode docs exist
 callback           6         8     0       0%      Results exist but wrong page
 ```
 
-Categorize gaps:
-- **Missing content** — term exists in docs but not indexed (crawler issue)
-- **Missing synonym** — user searches term A, docs use term B
-- **Missing docs** — no content exists for this topic
-- **Wrong result** — content indexed but irrelevant page ranks first
+### Action threshold
+
+Don't propose changes for queries below the noise floor. Starting heuristics — **tune per index volume, these are not hard rules**:
+
+- **No-result queries**: act only if ≥3 occurrences in the analytics window, or if the term is a known prop/API name and ≥2 occurrences.
+- **No-click queries**: act only if ≥10 hits with 0 clicks, or ≥5 searches with 0 clicks.
+- Single-occurrence misses, typos, and gibberish: log only, don't propose.
+
+First, look at total search volume. Indexes under ~100 searches / 30 days need lower thresholds (e.g., halve the numbers) since absolute counts are noisier. High-volume indexes (10k+/month) can raise thresholds to filter louder background noise. State the threshold you used when reporting findings so the user can challenge it.
+
+### Categorize gaps
+
+Use this lens — it determines which phase has the fix:
+
+- **0 hits returned** → either a content gap (term doesn't exist anywhere in the docs) or a synonym gap (docs use a different word). Verify by searching local source files for the term across any extension (`.md`, `.mdx`, `.rst`, `.html`, `.txt`, `.adoc`, etc.). If found, it's a synonym/indexing gap; if not, it's a content gap or a non-real term.
+- **>0 hits, 0 clicks** → the term is indexed but the result that ranks first is the wrong page, or the preview snippet is empty/unhelpful. **Almost never a content gap.** Inspect the top hit's `type`, `content`, and ranking position. Cross-reference with the live index settings from Phase 0 (`customRanking`, `searchableAttributes`, `attributeForDistinct`, `distinct`) — these together determine why that record ranks first.
 
 ## Phase 2: Validate Index Content
 
@@ -75,6 +134,8 @@ Red flags:
 - `content: null` — selectors don't match any elements
 - Content is navbar/header text (e.g., "Documentation\r\nDemos\r\nSearch") — selectors are too broad
 - Content is identical across all records — wrong element matched
+
+If a record's content is unexpectedly empty or stale, search local source files for the heading text or anchor across any extension the docs use (`.md`, `.mdx`, `.rst`, `.html`, `.txt`, `.adoc`, etc.). Confirm whether the source has the prose: if yes, the gap is in extraction (selectors, structure, JS rendering), not content; if no, it's a documentation gap and the source needs an addition before any indexing fix matters.
 
 ### Garbled anchors
 
@@ -125,7 +186,61 @@ If `renderJavaScript: false` in the crawler config, this is exactly what the cra
 
 **Auto-generated IDs**: Interactive components (accordions, tabs, playgrounds) generate IDs like `_R_4dlt8anpfl5ulb_`. Use Cheerio to remove these elements before extraction.
 
+Phase 3 outputs map directly to Phase 4 fixes: selector mismatches → crawler `recordProps` scoping, ID noise → Cheerio `.remove()` calls, JS-only content → `renderJavaScript: true` or custom records.
+
 ## Phase 4: Recommend Fixes
+
+Each recommendation in this phase is conditional on a specific diagnosis from Phases 0-3. Don't propose synonyms, custom records, or content edits as a checklist — propose them only when the evidence (deployed state from Phase 0, analytics from Phase 1, record inspection from Phase 2, crawler behavior from Phase 3) points to that fix.
+
+### Verify named entities before proposing
+
+Before proposing a synonym, migration entry, or content addition that names a specific prop, function, type, or API: grep the codebase to confirm the name exists (or existed). Don't fabricate legacy names from no-result analytics — single-occurrence misspellings of real props are common, and proposing migration entries for invented props erodes trust fast.
+
+### Empty-preview heading-record pattern (diagnostic pointer)
+
+**Pattern to watch for**: queries with multiple top hits showing the same hierarchy breadcrumb but no preview snippet (the record's `content` is `null`). DocSearch creates separate records for headings (`type: lvl2`/`lvl3`) and body text (`type: content`). When a heading record and a content record share an anchor, the live `customRanking` (notably `desc(weight.level)`) and `attributeForDistinct` (often `"url"`, anchor-included) decide which one survives the dedup pass.
+
+Don't apply a fix blindly. Inspect the record set for the failing query, compare which `type` ranks first, then read the live `customRanking`, `searchableAttributes`, and `attributeForDistinct` values from Phase 0 and reason about how they interact. Possible fixes range from small (tiebreaker reorder) to invasive (search-attribute reorder, distinct-attribute change). Always validate with a snapshot diff (next subsection) before keeping any change.
+
+### Before mutating live index settings
+
+Settings changes apply at query time — no re-crawl needed, and revert is one save in the dashboard. But on a single live index, "test then keep or revert" is the only workflow. Capture a baseline first.
+
+1. **BEFORE snapshot**: pick the top 25–30 highest-volume queries from Phase 1 analytics (plus any query you specifically intend to fix). Record the top 5 hits each — `type`, full `hierarchy`, `url`, `anchor`. Save to file.
+2. **Apply the change** in the dashboard.
+3. **AFTER snapshot**: rerun the same script.
+4. **Diff**.
+
+Acceptable changes: `type` swaps with same URL/anchor, ordering shifts within a page, content records replacing empty-preview heading records on the same anchor.
+
+Unacceptable (revert immediately): URL or anchor changes on top hits, previously-top pages dropping out of top 5, page A's content now landing on page B's anchor.
+
+Minimal snapshot loop:
+
+```python
+import json, urllib.request, sys
+APP, KEY, INDEX = "...", "...", "..."
+QUERIES = ["term1", "term2", "term3"]  # top-volume queries
+label = sys.argv[1] if len(sys.argv) > 1 else "snapshot"
+print(f"=== {label} ===")
+for q in QUERIES:
+    body = json.dumps({"query": q, "hitsPerPage": 5,
+                       "attributesToRetrieve": ["type","hierarchy","url","anchor"]}).encode()
+    req = urllib.request.Request(
+        f"https://{APP}-dsn.algolia.net/1/indexes/{INDEX}/query",
+        data=body,
+        headers={"X-Algolia-Application-Id": APP, "X-Algolia-API-Key": KEY,
+                 "Content-Type": "application/json"})
+    d = json.loads(urllib.request.urlopen(req, timeout=15).read().decode("utf-8","replace"), strict=False)
+    print(f"--- {q!r} (nbHits={d['nbHits']}) ---")
+    for i, h in enumerate(d["hits"], 1):
+        hier = h.get("hierarchy") or {}
+        h2 = hier.get("lvl2") or "-"
+        h3 = hier.get("lvl3") or "-"
+        print(f"  {i}. {h['type']:<7} {h2:<30} {h3:<35} {h['url']}")
+```
+
+Run with `python3 snapshot.py BEFORE > before.txt`, apply the change, then `python3 snapshot.py AFTER > after.txt`, then `diff -u before.txt after.txt`.
 
 ### Crawler config fixes
 
@@ -214,21 +329,6 @@ For interactive pages (demos, playgrounds) where the DOM isn't useful, add a sec
 ```
 
 Use curated keyword-rich descriptions. The `lvl0` value controls grouping in search results — "Documentation" and "Examples" sort alphabetically, so "Examples" appears after "Documentation".
-
-### DocSearch component
-
-Enable click tracking if not already done:
-
-```tsx
-<DocSearch
-  appId="..."
-  apiKey="..."
-  indexName="..."
-  insights={true}
-/>
-```
-
-This enables Algolia Insights, which populates CTR and click position data in analytics. Without it, those fields are always `null`.
 
 ## Phase 5: Verify After Re-crawl
 
