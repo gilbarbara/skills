@@ -1,8 +1,7 @@
 ---
 name: review-changes
-description: Review uncommitted changes or the current branch. Picks scope automatically, runs a fresh reviewer subagent, then validates its findings before reporting.
+description: Review uncommitted changes or the current branch. Use when asked to review changes, the diff, uncommitted work, or the branch. Picks scope automatically, runs a fresh reviewer subagent, then validates its findings before reporting.
 argument-hint: "[code|staged|branch|<base-ref>] [instructions]"
-disable-model-invocation: true
 ---
 
 Two passes: a fresh `general-purpose` subagent finds issues, then this session validates them. The reviewer must not share this session's context, so it isn't anchored on whoever wrote the code.

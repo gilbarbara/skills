@@ -1,8 +1,7 @@
 ---
 name: validate-plan
-description: Fact-check a plan's claims against source and check it covers the request. A fresh subagent checks; this session validates its verdicts.
+description: Fact-check a plan's claims against source and check it covers the request. Use when asked to validate, verify, fact-check, or check a plan. A fresh subagent checks; this session validates its verdicts.
 argument-hint: "[plan-path] [instructions]"
-disable-model-invocation: true
 ---
 
 Check whether the plan's premises are true and whether it covers what was asked. This is not a code review: don't hunt for new problems, don't add plan items, and don't rewrite the plan.
