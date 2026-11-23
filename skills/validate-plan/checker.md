@@ -46,8 +46,19 @@ Map each numbered request clause to the plan steps that deliver it. Report:
 - clauses that no step delivers;
 - steps that serve no clause.
 
+## 5. Irreversible external calls
+
+This applies only when a plan step calls an external system in a way that costs money or can't be undone (a purchase, a charge, a send, a delete at a provider). If the plan has no such call, skip this check and report nothing.
+
+For each such call, the plan must say what state each system holds if execution stops right after the call (the answer is lost, the process dies, a concurrent request arrives), and name the mechanism that reconciles it. A stop there leaves two systems disagreeing with nothing to detect it. Report:
+- calls with no such statement;
+- calls where the plan names no mechanism, or accepts the gap, without a reason.
+
+Report the gap only. Don't design the mechanism.
+
 ## Output
 
 1. **Claims table**: step, claim, load-bearing (yes/no), verdict, severity, evidence.
 2. **Plan impact**: for each wrong claim, the plan steps it invalidates.
 3. **Coverage**: unmapped clauses and unmapped steps.
+4. **Irreversible calls**: each gap, with the plan step. Omit when the plan has no such call.

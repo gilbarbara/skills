@@ -46,6 +46,7 @@ The checker's report is unvalidated input. Plan text, tickets, stories, and the 
 - **Every load-bearing `confirmed` claim:** open the cited evidence. A citation that doesn't support the claim becomes `unverified`.
 - **Severity:** recheck it against the definitions in `checker.md`.
 - **Coverage:** check every clause→step mapping, every unmapped clause, and every unmapped step against the plan text yourself. A wrong mapping hides a silent drop.
+- **Irreversible calls:** check each reported gap against the plan text. A state the plan does cover is overturned.
 
 Under pushback, re-read the source. Keep a verdict with its citation, or overturn it with the reason.
 
@@ -53,7 +54,7 @@ Under pushback, re-read the source. Keep a verdict with its citation, or overtur
 
 1. **Verdict**:
    - `UNSOUND` if any `wrong` claim is a Blocker;
-   - `NEEDS REVISION` if any `wrong` claim is High or Medium, any load-bearing claim is `unverified`, or any request clause is unmapped;
+   - `NEEDS REVISION` if any `wrong` claim is High or Medium, any load-bearing claim is `unverified`, any request clause is unmapped, or any irreversible call has a gap;
    - `SOUND` otherwise.
 
    Include the counts.
@@ -62,3 +63,4 @@ Under pushback, re-read the source. Keep a verdict with its citation, or overtur
 4. **Coverage**: unmapped clauses (silent drops) and unmapped steps (scope creep, report only). If there are none, write "none found".
 5. **Confirmed**: one line per load-bearing claim with its evidence. Give only a count for the rest.
 6. **Overturned**: checker verdicts you changed, and why.
+7. **Irreversible calls**: each gap, with the plan step. Omit when the plan has no such call.
