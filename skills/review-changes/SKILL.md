@@ -56,8 +56,12 @@ Don't pass your own opinion of the change. The reviewer works from the code alon
 
 Read this skill's `rigor.md` and apply it to every finding the reviewer returns.
 
+Then read the branch's ledger, `review-changes/<branch>.md` under the directory `git rev-parse --git-common-dir` prints, and apply the repeat rule in `rigor.md`. On the base branch or a detached HEAD, skip this and say so in one line. If there is no ledger, say "no earlier review record".
+
 Re-run both baseline commands from step 1. If either output changed, the reviewer edited files. Report that first, at the top of the output.
 
 ## 5. Output
 
 State the scope in one line: code, staged, or branch vs `<base>`, with the file count. Then give the sections in the order `rigor.md` defines. If there are no findings, say "none found".
+
+After the output, unless the ledger was skipped, append one line per validated finding to it: date, `path`, enclosing function (or heading; else the file), severity, and a one-line issue. Create its directory first (`mkdir -p`), since a branch name with a slash nests.
